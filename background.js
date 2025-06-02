@@ -201,8 +201,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 async function handleTimerExpired() {
   debugLog('Timer expired, executing action:', currentSettings.actionOnTimeout);
   
-  const totalViewTime = timerState.elapsedTime + (timerState.startTime ? Date.now() - timerState.startTime : 0);
-  currentSettings.dailyStats.totalViewTime += totalViewTime;
+  const sessionTime = timerState.startTime ? Date.now() - timerState.startTime : 0;
+  currentSettings.dailyStats.totalViewTime += sessionTime;
   await saveSettings();
   
   if (currentSettings.actionOnTimeout === 'lock') {
