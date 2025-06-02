@@ -64,12 +64,12 @@
           </div>
         </div>
         
-        <div class="button-area">
+        <div class="button-area segmented-buttons">
           <button id="extend-timer-btn" class="lock-btn extend-btn">
             時間延長
           </button>
           <button id="go-home-btn" class="lock-btn home-btn">
-            YouTubeホームへ
+            YouTubeトップへ
           </button>
         </div>
         
@@ -152,40 +152,52 @@
       
       .button-area {
         display: flex !important;
-        gap: 16px !important;
         justify-content: center !important;
         margin-bottom: 20px !important;
+      }
+      
+      .segmented-buttons {
+        display: inline-flex !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        padding: 4px !important;
+        gap: 0 !important;
       }
       
       .lock-btn {
         padding: 12px 24px !important;
         border: none !important;
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         font-size: 16px !important;
         font-weight: 600 !important;
         cursor: pointer !important;
         transition: all 0.3s ease !important;
         min-width: 140px !important;
+        background: transparent !important;
+        color: #e0e0e0 !important;
+        position: relative !important;
+      }
+      
+      .lock-btn:hover {
+        background: rgba(255, 255, 255, 0.1) !important;
+      }
+      
+      .lock-btn:active,
+      .lock-btn:focus {
+        background: rgba(255, 255, 255, 0.2) !important;
+        color: white !important;
       }
       
       .extend-btn {
-        background: #ff9800 !important;
-        color: white !important;
+        margin-right: 4px !important;
       }
       
       .extend-btn:hover {
-        background: #f57c00 !important;
-        transform: translateY(-2px) !important;
-      }
-      
-      .home-btn {
-        background: #4caf50 !important;
-        color: white !important;
+        color: #ff9800 !important;
       }
       
       .home-btn:hover {
-        background: #388e3c !important;
-        transform: translateY(-2px) !important;
+        color: #4caf50 !important;
       }
       
       .extension-count {
@@ -200,12 +212,19 @@
           margin: 20px !important;
         }
         
-        .button-area {
+        .segmented-buttons {
           flex-direction: column !important;
+          width: 100% !important;
         }
         
         .lock-btn {
           width: 100% !important;
+          margin-right: 0 !important;
+          margin-bottom: 4px !important;
+        }
+        
+        .lock-btn:last-child {
+          margin-bottom: 0 !important;
         }
       }
     `;

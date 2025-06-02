@@ -1,6 +1,6 @@
 {
   "name": "youtube-shorts-blocker",
-  "version": "1.1.2",
+  "version": "1.2.1",
   "description": "YouTubeショート動画の視聴時間を制限し、健全なブラウジング習慣をサポートします",
   "scripts": {
     "version:patch": "npm version patch --no-git-tag-version && node scripts/sync-version.js",
