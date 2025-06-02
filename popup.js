@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 const elements = {
   dailyViewTime: document.getElementById('dailyViewTime'),
+  extensionCount: document.getElementById('extensionCount'),
+  consecutiveExtensionCount: document.getElementById('consecutiveExtensionCount'),
   remainingTime: document.getElementById('remainingTime'),
   timerMinutes: document.getElementById('timerMinutes'),
   decreaseTime: document.getElementById('decreaseTime'),
@@ -82,6 +84,8 @@ function updateUI(status) {
   elements.timerMinutes.value = status.settings.timerMinutes;
   
   elements.dailyViewTime.textContent = formatDuration(status.dailyViewTime);
+  elements.extensionCount.textContent = `${status.settings.dailyStats.extensionCount || 0}回`;
+  elements.consecutiveExtensionCount.textContent = `${status.settings.dailyStats.consecutiveExtensionCount || 0}回`;
   
   const actionRadio = document.querySelector(`input[name="action"][value="${status.settings.actionOnTimeout}"]`);
   if (actionRadio) {

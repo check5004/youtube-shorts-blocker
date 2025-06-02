@@ -48,6 +48,11 @@ section {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 8px;
+}
+
+.daily-stats:last-child {
+  margin-bottom: 0;
 }
 
 .daily-stats .label {

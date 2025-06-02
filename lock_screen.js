@@ -75,6 +75,7 @@
         
         <div class="extension-count">
           ${data.extensionCount > 0 ? `本日の延長回数: ${data.extensionCount}回` : ''}
+          ${data.consecutiveExtensionCount > 0 ? `<br>連続続行回数: ${data.consecutiveExtensionCount}回` : ''}
         </div>
       </div>
     `;
