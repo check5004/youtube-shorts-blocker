@@ -9,7 +9,8 @@ const DEFAULT_SETTINGS = {
     totalViewTime: 0,
     extensionCount: 0,
     lastResetDate: null
-  }
+  },
+  debugMode: false
 };
 
 let currentSettings = { ...DEFAULT_SETTINGS };
@@ -20,6 +21,13 @@ let timerState = {
   activeShortsTabs: new Set(),
   lastSaveTime: null
 };
+
+// Debug logging function
+function debugLog(...args) {
+  if (currentSettings.debugMode) {
+    console.log('[YT Shorts Blocker]', new Date().toISOString(), ...args);
+  }
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
   await initializeSettings();
@@ -81,14 +89,17 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 
 async function handleTabUpdate(tabId, url) {
   if (isYouTubeShorts(url)) {
+    debugLog('YouTube Shorts detected on tab', tabId, 'URL:', url);
     timerState.activeShortsTabs.add(tabId);
     await startTimerIfNeeded();
   } else {
+    debugLog('Non-Shorts page on tab', tabId, 'URL:', url);
     timerState.activeShortsTabs.delete(tabId);
     currentSettings.tempDisableForTab.delete(tabId);
     await saveSettings();
     
     if (timerState.activeShortsTabs.size === 0) {
+      debugLog('No active Shorts tabs, pausing timer');
       await pauseTimer();
     }
   }
@@ -140,9 +151,17 @@ async function startTimer() {
   timerState.lastSaveTime = Date.now();
   
   const remainingTime = (currentSettings.timerMinutes * 60 * 1000) - timerState.elapsedTime;
-  await chrome.alarms.create('shortsTimer', { delayInMinutes: remainingTime / (60 * 1000) });
+  const delayInMinutes = remainingTime / (60 * 1000);
   
-  console.log('Timer started, remaining time:', remainingTime / 1000, 'seconds');
+  // Chrome alarms have a minimum delay of 1 minute in production, but allow shorter delays in debug mode
+  if (currentSettings.debugMode && delayInMinutes < 1) {
+    // For debug mode with very short timers, use a shorter alarm
+    await chrome.alarms.create('shortsTimer', { delayInMinutes: Math.max(0.1, delayInMinutes) });
+  } else {
+    await chrome.alarms.create('shortsTimer', { delayInMinutes: Math.max(1, delayInMinutes) });
+  }
+  
+  debugLog('Timer started, remaining time:', remainingTime / 1000, 'seconds');
 }
 
 async function pauseTimer() {
@@ -158,7 +177,7 @@ async function pauseTimer() {
   }
   
   await chrome.alarms.clear('shortsTimer');
-  console.log('Timer paused, elapsed time:', timerState.elapsedTime / 1000, 'seconds');
+  debugLog('Timer paused, elapsed time:', timerState.elapsedTime / 1000, 'seconds');
 }
 
 async function resetTimer() {
@@ -166,7 +185,7 @@ async function resetTimer() {
   timerState.startTime = null;
   timerState.elapsedTime = 0;
   await chrome.alarms.clear('shortsTimer');
-  console.log('Timer reset');
+  debugLog('Timer reset');
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -180,7 +199,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 async function handleTimerExpired() {
-  console.log('Timer expired, executing action:', currentSettings.actionOnTimeout);
+  debugLog('Timer expired, executing action:', currentSettings.actionOnTimeout);
   
   const totalViewTime = timerState.elapsedTime + (timerState.startTime ? Date.now() - timerState.startTime : 0);
   currentSettings.dailyStats.totalViewTime += totalViewTime;
@@ -197,6 +216,15 @@ async function handleTimerExpired() {
 
 async function showLockScreen() {
   const activeTabs = Array.from(timerState.activeShortsTabs);
+  
+  // If no active Shorts tabs (e.g., force lock), show on current active tab
+  if (activeTabs.length === 0) {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (activeTab) {
+      activeTabs.push(activeTab.id);
+    }
+  }
+  
   for (const tabId of activeTabs) {
     try {
       await chrome.scripting.executeScript({
@@ -247,7 +275,7 @@ async function performAutoSave() {
       currentSettings.dailyStats.totalViewTime += sessionTime;
       timerState.lastSaveTime = now;
       await saveSettings();
-      console.log('Auto-saved viewing time:', sessionTime / 1000, 'seconds');
+      debugLog('Auto-saved viewing time:', sessionTime / 1000, 'seconds');
     }
   }
 }
@@ -272,7 +300,7 @@ function shouldResetToday(lastReset, now) {
 }
 
 async function performDailyReset() {
-  console.log('Performing daily reset');
+  debugLog('Performing daily reset');
   
   currentSettings.dailyStats = {
     totalViewTime: 0,
@@ -294,14 +322,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function handleMessage(message, sender, sendResponse) {
+  debugLog('Received message:', message.type, message);
   try {
     switch (message.type) {
       case 'getStatus':
         const status = await getTimerStatus();
+        debugLog('Sending status:', status);
         sendResponse(status);
         break;
         
       case 'updateSettings':
+        debugLog('Updating settings:', message.settings);
         Object.assign(currentSettings, message.settings);
         await saveSettings();
         sendResponse({ success: true });
@@ -330,6 +361,12 @@ async function handleMessage(message, sender, sendResponse) {
       case 'getLockScreenData':
         const lockData = await getLockScreenData();
         sendResponse(lockData);
+        break;
+        
+      case 'forceLockScreen':
+        debugLog('Force lock screen requested');
+        await showLockScreen();
+        sendResponse({ success: true });
         break;
         
       default:
@@ -377,10 +414,16 @@ async function extendTimer() {
   if (timerState.isRunning) {
     await chrome.alarms.clear('shortsTimer');
     const remainingTime = (currentSettings.timerMinutes * 60 * 1000) - timerState.elapsedTime;
-    await chrome.alarms.create('shortsTimer', { delayInMinutes: remainingTime / (60 * 1000) });
+    const delayInMinutes = remainingTime / (60 * 1000);
+    
+    if (currentSettings.debugMode && delayInMinutes < 1) {
+      await chrome.alarms.create('shortsTimer', { delayInMinutes: Math.max(0.1, delayInMinutes) });
+    } else {
+      await chrome.alarms.create('shortsTimer', { delayInMinutes: Math.max(1, delayInMinutes) });
+    }
   }
   
-  console.log('Timer extended by', currentSettings.timerMinutes, 'minutes');
+  debugLog('Timer extended by', currentSettings.timerMinutes, 'minutes');
 }
 
 async function getLockScreenData() {
