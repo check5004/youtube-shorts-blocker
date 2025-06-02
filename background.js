@@ -17,18 +17,21 @@ let timerState = {
   isRunning: false,
   startTime: null,
   elapsedTime: 0,
-  activeShortsTabs: new Set()
+  activeShortsTabs: new Set(),
+  lastSaveTime: null
 };
 
 chrome.runtime.onInstalled.addListener(async () => {
   await initializeSettings();
   await setupDailyReset();
+  await setupAutoSave();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await loadSettings();
   await checkDailyReset();
   await setupDailyReset();
+  await setupAutoSave();
 });
 
 async function initializeSettings() {
@@ -134,6 +137,7 @@ async function startTimer() {
   
   timerState.isRunning = true;
   timerState.startTime = Date.now();
+  timerState.lastSaveTime = Date.now();
   
   const remainingTime = (currentSettings.timerMinutes * 60 * 1000) - timerState.elapsedTime;
   await chrome.alarms.create('shortsTimer', { delayInMinutes: remainingTime / (60 * 1000) });
@@ -146,7 +150,10 @@ async function pauseTimer() {
   
   timerState.isRunning = false;
   if (timerState.startTime) {
-    timerState.elapsedTime += Date.now() - timerState.startTime;
+    const sessionTime = Date.now() - timerState.startTime;
+    timerState.elapsedTime += sessionTime;
+    currentSettings.dailyStats.totalViewTime += sessionTime;
+    await saveSettings();
     timerState.startTime = null;
   }
   
@@ -167,6 +174,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     await handleTimerExpired();
   } else if (alarm.name === 'dailyReset') {
     await performDailyReset();
+  } else if (alarm.name === 'autoSave') {
+    await performAutoSave();
   }
 });
 
@@ -222,6 +231,25 @@ async function setupDailyReset() {
   
   const delayInMinutes = (next4AM.getTime() - now.getTime()) / (60 * 1000);
   await chrome.alarms.create('dailyReset', { delayInMinutes, periodInMinutes: 24 * 60 });
+}
+
+async function setupAutoSave() {
+  // Set up alarm to save every minute
+  await chrome.alarms.create('autoSave', { periodInMinutes: 1 });
+}
+
+async function performAutoSave() {
+  if (timerState.isRunning && timerState.startTime) {
+    const now = Date.now();
+    const sessionTime = now - timerState.lastSaveTime;
+    
+    if (sessionTime > 0) {
+      currentSettings.dailyStats.totalViewTime += sessionTime;
+      timerState.lastSaveTime = now;
+      await saveSettings();
+      console.log('Auto-saved viewing time:', sessionTime / 1000, 'seconds');
+    }
+  }
 }
 
 async function checkDailyReset() {
@@ -316,11 +344,14 @@ async function handleMessage(message, sender, sendResponse) {
 async function getTimerStatus() {
   const currentTime = Date.now();
   let remainingTime = 0;
+  let realTimeDailyViewTime = currentSettings.dailyStats.totalViewTime;
   
   if (timerState.isRunning && timerState.startTime) {
     const currentElapsed = timerState.elapsedTime + (currentTime - timerState.startTime);
     const totalTime = currentSettings.timerMinutes * 60 * 1000;
     remainingTime = Math.max(0, totalTime - currentElapsed);
+    // Add current session time to daily view time for real-time display
+    realTimeDailyViewTime += (currentTime - timerState.startTime);
   } else if (!timerState.isRunning && timerState.elapsedTime > 0) {
     const totalTime = currentSettings.timerMinutes * 60 * 1000;
     remainingTime = Math.max(0, totalTime - timerState.elapsedTime);
@@ -332,7 +363,7 @@ async function getTimerStatus() {
     isRunning: timerState.isRunning,
     remainingTime: Math.floor(remainingTime / 1000),
     settings: currentSettings,
-    dailyViewTime: currentSettings.dailyStats.totalViewTime
+    dailyViewTime: realTimeDailyViewTime
   };
 }
 
@@ -369,11 +400,12 @@ async function getLockScreenData() {
   const randomMessage = categoryMessages[Math.floor(Math.random() * categoryMessages.length)];
   
   const currentViewTime = timerState.elapsedTime + (timerState.startTime ? Date.now() - timerState.startTime : 0);
+  const realTimeDailyViewTime = currentSettings.dailyStats.totalViewTime + (timerState.startTime ? Date.now() - timerState.startTime : 0);
   
   return {
     message: randomMessage,
     currentViewTime: Math.floor(currentViewTime / 1000),
-    dailyViewTime: Math.floor(currentSettings.dailyStats.totalViewTime / 1000),
+    dailyViewTime: Math.floor(realTimeDailyViewTime / 1000),
     extensionCount
   };
 }
