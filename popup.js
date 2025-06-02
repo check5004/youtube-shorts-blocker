@@ -13,7 +13,8 @@ const elements = {
   actionRadios: document.querySelectorAll('input[name="action"]'),
   tempDisableBtn: document.getElementById('tempDisableBtn'),
   todayOffToggle: document.getElementById('todayOffToggle'),
-  alwaysOffToggle: document.getElementById('alwaysOffToggle')
+  alwaysOffToggle: document.getElementById('alwaysOffToggle'),
+  debugModeToggle: document.getElementById('debugModeToggle')
 };
 
 async function initializePopup() {
@@ -44,6 +45,7 @@ function setupEventListeners() {
   
   elements.todayOffToggle.addEventListener('change', handleTodayOffToggle);
   elements.alwaysOffToggle.addEventListener('change', handleAlwaysOffToggle);
+  elements.debugModeToggle.addEventListener('change', handleDebugModeToggle);
 }
 
 function sendMessage(message) {
@@ -83,6 +85,7 @@ function updateUI(status) {
   
   elements.todayOffToggle.checked = status.settings.todayOffUntil && new Date() < new Date(status.settings.todayOffUntil);
   elements.alwaysOffToggle.checked = status.settings.isTimerAlwaysDisabled;
+  elements.debugModeToggle.checked = status.settings.debugMode || false;
 }
 
 function formatTime(seconds) {
@@ -186,6 +189,17 @@ async function handleAlwaysOffToggle(event) {
     });
   } catch (error) {
     console.error('Failed to update always off setting:', error);
+  }
+}
+
+async function handleDebugModeToggle(event) {
+  try {
+    await sendMessage({
+      type: 'updateSettings',
+      settings: { debugMode: event.target.checked }
+    });
+  } catch (error) {
+    console.error('Failed to update debug mode setting:', error);
   }
 }
 

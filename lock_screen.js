@@ -1,13 +1,31 @@
 (function() {
   'use strict';
   
+  let debugMode = false;
+  
+  // Get debug mode setting
+  chrome.storage.local.get(['debugMode'], (result) => {
+    debugMode = result.debugMode || false;
+  });
+  
+  function debugLog(...args) {
+    if (debugMode) {
+      console.log('[YT Shorts Blocker Lock Screen]', ...args);
+    }
+  }
+  
   if (document.getElementById('youtube-shorts-blocker-overlay')) {
+    debugLog('Lock screen already exists, skipping');
     return;
   }
   
+  debugLog('Requesting lock screen data');
   chrome.runtime.sendMessage({ type: 'getLockScreenData' }, (response) => {
     if (response && !response.error) {
+      debugLog('Lock screen data received:', response);
       showLockScreen(response);
+    } else {
+      debugLog('Error getting lock screen data:', response);
     }
   });
   
@@ -201,12 +219,14 @@
     const homeBtn = overlay.querySelector('#go-home-btn');
     
     extendBtn.addEventListener('click', () => {
+      debugLog('Extend timer button clicked');
       chrome.runtime.sendMessage({ type: 'extendTimer' }, () => {
         removeLockScreen();
       });
     });
     
     homeBtn.addEventListener('click', () => {
+      debugLog('Go to YouTube home button clicked');
       chrome.runtime.sendMessage({ type: 'goToYouTubeHome' }, () => {
         removeLockScreen();
       });
