@@ -66,6 +66,47 @@ jobs:
         git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
         git push origin "v${{ steps.version.outputs.version }}"
         
+    - name: Generate release notes
+      if: steps.check_tag.outputs.exists == 'false'
+      id: release_notes
+      run: |
+        # Get the previous tag
+        PREV_TAG=$(git tag --sort=-version:refname | grep -v "v${{ steps.version.outputs.version }}" | head -1)
+        echo "Previous tag: $PREV_TAG"
+        
+        # Generate changelog from commits since previous tag
+        if [ -n "$PREV_TAG" ]; then
+          CHANGELOG=$(git log --oneline $PREV_TAG..HEAD --grep="^feat" --grep="^fix" --grep="^perf" --grep="^refactor" --pretty=format:"- %s" | head -20)
+        else
+          CHANGELOG=$(git log --oneline --grep="^feat" --grep="^fix" --grep="^perf" --grep="^refactor" --pretty=format:"- %s" | head -20)
+        fi
+        
+        # If no conventional commits found, fall back to all commits
+        if [ -z "$CHANGELOG" ]; then
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --oneline $PREV_TAG..HEAD --pretty=format:"- %s" | head -10)
+          else
+            CHANGELOG=$(git log --oneline --pretty=format:"- %s" | head -10)
+          fi
+        fi
+        
+        # Create release body
+        cat > release_body.md << EOF
+        ## YouTube Shorts Blocker v${{ steps.version.outputs.version }}
+        
+        ### 変更内容
+        ${CHANGELOG}
+        
+        ### インストール方法
+        1. \`youtube-shorts-blocker-v${{ steps.version.outputs.version }}.zip\` をダウンロード
+        2. ZIPファイルを解凍
+        3. Chrome拡張機能の管理画面で「デベロッパーモード」を有効化
+        4. 「パッケージ化されていない拡張機能を読み込む」で解凍したフォルダを選択
+        EOF
+        
+        echo "Generated release notes:"
+        cat release_body.md
+        
     - name: Create GitHub Release
       if: steps.check_tag.outputs.exists == 'false'
       id: create_release
@@ -75,17 +116,7 @@ jobs:
       with:
         tag_name: v${{ steps.version.outputs.version }}
         release_name: YouTube Shorts Blocker v${{ steps.version.outputs.version }}
-        body: |
-          ## YouTube Shorts Blocker v${{ steps.version.outputs.version }}
-          
-          ### インストール方法
-          1. `youtube-shorts-blocker-v${{ steps.version.outputs.version }}.zip` をダウンロード
-          2. ZIPファイルを解凍
-          3. Chrome拡張機能の管理画面で「デベロッパーモード」を有効化
-          4. 「パッケージ化されていない拡張機能を読み込む」で解凍したフォルダを選択
-          
-          ### 変更履歴
-          manifest.jsonのバージョンが更新されました。詳細な変更内容は最新のコミットをご確認ください。
+        body_path: release_body.md
         draft: false
         prerelease: false
         
