@@ -48,15 +48,13 @@
     <!-- 時間切れ時のアクション設定 -->
     <section class="action-section">
       <label class="setting-label">時間切れ時のアクション:</label>
-      <div class="action-chips">
-        <label class="chip-option">
-          <input type="radio" name="action" value="lock" checked>
-          <span class="chip">画面をロック</span>
-        </label>
-        <label class="chip-option">
-          <input type="radio" name="action" value="redirect">
-          <span class="chip">YouTubeトップへ強制遷移</span>
-        </label>
+      <div class="segmented-buttons">
+        <button class="segment-btn segment-btn-active" data-action="lock">
+          画面をロック
+        </button>
+        <button class="segment-btn" data-action="redirect">
+          YouTubeトップへ
+        </button>
       </div>
     </section>
 
