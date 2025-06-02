@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS = {
   dailyStats: {
     totalViewTime: 0,
     extensionCount: 0,
+    consecutiveExtensionCount: 0,
     lastResetDate: null
   },
   debugMode: false
@@ -207,6 +208,9 @@ async function handleTabUpdate(tabId, url) {
     if (timerState.activeShortsTabs.size === 0) {
       debugLog('No active Shorts tabs, pausing timer');
       await pauseTimer();
+      // Reset consecutive extension count when leaving Shorts
+      currentSettings.dailyStats.consecutiveExtensionCount = 0;
+      await saveSettings();
     }
   }
 }
@@ -227,6 +231,9 @@ async function handleTabRemoved(tabId) {
   
   if (timerState.activeShortsTabs.size === 0) {
     await pauseTimer();
+    // Reset consecutive extension count when all Shorts tabs are closed
+    currentSettings.dailyStats.consecutiveExtensionCount = 0;
+    await saveSettings();
   }
 }
 
@@ -318,6 +325,9 @@ async function handleTimerExpired() {
   
   const sessionTime = timerState.startTime ? Date.now() - timerState.startTime : 0;
   currentSettings.dailyStats.totalViewTime += sessionTime;
+  
+  // Reset consecutive extension count when timer expires naturally
+  currentSettings.dailyStats.consecutiveExtensionCount = 0;
   await saveSettings();
   
   // Store active tabs before resetting timer
@@ -465,6 +475,7 @@ async function performDailyReset() {
   currentSettings.dailyStats = {
     totalViewTime: 0,
     extensionCount: 0,
+    consecutiveExtensionCount: 0,
     lastResetDate: resetTime
   };
   
@@ -587,6 +598,7 @@ async function getTimerStatus() {
 
 async function extendTimer() {
   currentSettings.dailyStats.extensionCount++;
+  currentSettings.dailyStats.consecutiveExtensionCount++;
   await saveSettings();
   
   const extensionTime = currentSettings.timerMinutes * 60 * 1000;
@@ -636,7 +648,8 @@ async function getLockScreenData() {
     message: randomMessage,
     currentViewTime: Math.floor(currentViewTime / 1000),
     dailyViewTime: Math.floor(realTimeDailyViewTime / 1000),
-    extensionCount
+    extensionCount,
+    consecutiveExtensionCount: currentSettings.dailyStats.consecutiveExtensionCount
   };
 }
 
