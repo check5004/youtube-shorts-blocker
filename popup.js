@@ -12,7 +12,7 @@ const elements = {
   timerMinutes: document.getElementById('timerMinutes'),
   decreaseTime: document.getElementById('decreaseTime'),
   increaseTime: document.getElementById('increaseTime'),
-  actionRadios: document.querySelectorAll('input[name="action"]'),
+  actionButtons: document.querySelectorAll('.segment-btn'),
   tempDisableBtn: document.getElementById('tempDisableBtn'),
   todayOffToggle: document.getElementById('todayOffToggle'),
   alwaysOffToggle: document.getElementById('alwaysOffToggle'),
@@ -42,8 +42,8 @@ function setupEventListeners() {
     }
   });
   
-  elements.actionRadios.forEach(radio => {
-    radio.addEventListener('change', handleActionChange);
+  elements.actionButtons.forEach(button => {
+    button.addEventListener('click', handleActionButtonClick);
   });
   
   elements.tempDisableBtn.addEventListener('click', handleTempDisable);
@@ -109,10 +109,14 @@ async function updateUI(status) {
   elements.extensionCount.textContent = `${status.settings.dailyStats.extensionCount || 0}回`;
   elements.consecutiveExtensionCount.textContent = `${status.settings.dailyStats.consecutiveExtensionCount || 0}回`;
   
-  const actionRadio = document.querySelector(`input[name="action"][value="${status.settings.actionOnTimeout}"]`);
-  if (actionRadio) {
-    actionRadio.checked = true;
-  }
+  // Update segmented button state
+  elements.actionButtons.forEach(btn => {
+    if (btn.dataset.action === status.settings.actionOnTimeout) {
+      btn.classList.add('segment-btn-active');
+    } else {
+      btn.classList.remove('segment-btn-active');
+    }
+  });
   
   elements.todayOffToggle.checked = status.settings.todayOffUntil && new Date() < new Date(status.settings.todayOffUntil);
   elements.alwaysOffToggle.checked = status.settings.isTimerAlwaysDisabled;
@@ -205,11 +209,23 @@ async function updateTimerSetting(minutes) {
   }
 }
 
-async function handleActionChange(event) {
+async function handleActionButtonClick(event) {
   try {
+    const button = event.target;
+    const action = button.dataset.action;
+    
+    // Update visual state immediately
+    elements.actionButtons.forEach(btn => {
+      if (btn === button) {
+        btn.classList.add('segment-btn-active');
+      } else {
+        btn.classList.remove('segment-btn-active');
+      }
+    });
+    
     await sendMessage({
       type: 'updateSettings',
-      settings: { actionOnTimeout: event.target.value }
+      settings: { actionOnTimeout: action }
     });
   } catch (error) {
     console.error('Failed to update action setting:', error);

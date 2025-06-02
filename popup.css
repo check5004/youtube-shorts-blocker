@@ -135,40 +135,44 @@ section {
 }
 
 /* アクションセクション */
-.action-chips {
+.segmented-buttons {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  padding: 4px;
+  gap: 0;
+  margin: 0 auto;
+}
+
+.action-section .segmented-buttons {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.chip-option {
+.segment-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-}
-
-.chip-option input[type="radio"] {
-  display: none;
-}
-
-.chip {
-  display: inline-block;
-  padding: 8px 16px;
-  border: 1px solid #dadce0;
-  border-radius: 20px;
-  background: white;
+  transition: all 0.3s ease;
+  min-width: 140px;
+  background: transparent;
   color: #5f6368;
-  font-size: 13px;
-  transition: all 0.2s;
+  position: relative;
   white-space: nowrap;
 }
 
-.chip-option input[type="radio"]:checked + .chip {
-  background: #1a73e8;
-  color: white;
-  border-color: #1a73e8;
+.segment-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
-.chip:hover {
-  border-color: #1a73e8;
+.segment-btn-active,
+.segment-btn-active:hover {
+  background: white;
+  color: #1a73e8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 /* コントロールセクション */
@@ -305,11 +309,17 @@ section {
     padding: 12px;
   }
   
-  .action-chips {
+  .segmented-buttons {
     flex-direction: column;
+    width: 100%;
   }
   
-  .chip {
-    text-align: center;
+  .segment-btn {
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  
+  .segment-btn:last-child {
+    margin-bottom: 0;
   }
 }
