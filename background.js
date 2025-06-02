@@ -225,6 +225,17 @@ async function showLockScreen() {
     }
   }
   
+  // First, pause videos on all active tabs
+  for (const tabId of activeTabs) {
+    try {
+      await chrome.tabs.sendMessage(tabId, { type: 'pauseVideo' });
+      debugLog('Sent pause video message to tab', tabId);
+    } catch (error) {
+      debugLog('Failed to send pause message to tab', tabId, error);
+    }
+  }
+  
+  // Then show lock screen
   for (const tabId of activeTabs) {
     try {
       await chrome.scripting.executeScript({
