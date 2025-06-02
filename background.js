@@ -205,6 +205,9 @@ async function handleTimerExpired() {
   currentSettings.dailyStats.totalViewTime += sessionTime;
   await saveSettings();
   
+  // Store active tabs before resetting timer
+  const activeTabs = new Set(timerState.activeShortsTabs);
+  
   if (currentSettings.actionOnTimeout === 'lock') {
     await showLockScreen();
   } else if (currentSettings.actionOnTimeout === 'redirect') {
@@ -212,6 +215,9 @@ async function handleTimerExpired() {
   }
   
   await resetTimer();
+  
+  // Restore active tabs after reset to maintain state for potential timer restart
+  timerState.activeShortsTabs = activeTabs;
 }
 
 async function showLockScreen() {
@@ -380,6 +386,16 @@ async function handleMessage(message, sender, sendResponse) {
         sendResponse({ success: true });
         break;
         
+      case 'lockScreenRemoved':
+        debugLog('Lock screen removed, checking if timer needs to restart');
+        // Check if timer should restart after lock screen removal
+        if (timerState.activeShortsTabs.size > 0 && !timerState.isRunning && shouldStartTimer()) {
+          debugLog('Restarting timer after lock screen removal');
+          await startTimer();
+        }
+        sendResponse({ success: true });
+        break;
+        
       default:
         sendResponse({ error: 'Unknown message type' });
     }
@@ -422,7 +438,12 @@ async function extendTimer() {
   const extensionTime = currentSettings.timerMinutes * 60 * 1000;
   timerState.elapsedTime = Math.max(0, timerState.elapsedTime - extensionTime);
   
-  if (timerState.isRunning) {
+  // If timer is not running but there are active Shorts tabs, restart the timer
+  if (!timerState.isRunning && timerState.activeShortsTabs.size > 0) {
+    debugLog('Restarting timer after extension, active tabs:', timerState.activeShortsTabs.size);
+    await startTimer();
+  } else if (timerState.isRunning) {
+    // If timer is already running, recreate the alarm with new time
     await chrome.alarms.clear('shortsTimer');
     const remainingTime = (currentSettings.timerMinutes * 60 * 1000) - timerState.elapsedTime;
     const delayInMinutes = remainingTime / (60 * 1000);
@@ -434,7 +455,7 @@ async function extendTimer() {
     }
   }
   
-  debugLog('Timer extended by', currentSettings.timerMinutes, 'minutes');
+  debugLog('Timer extended by', currentSettings.timerMinutes, 'minutes', 'elapsedTime:', timerState.elapsedTime / 1000, 'seconds');
 }
 
 async function getLockScreenData() {

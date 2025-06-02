@@ -247,6 +247,9 @@
     document.removeEventListener('keydown', blockKeyboardEvents, true);
     document.removeEventListener('keyup', blockKeyboardEvents, true);
     document.removeEventListener('keypress', blockKeyboardEvents, true);
+    
+    // Notify background that lock screen was removed
+    chrome.runtime.sendMessage({ type: 'lockScreenRemoved' });
   }
   
   function blockKeyboardEvents(e) {
