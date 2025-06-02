@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Shorts Blocker",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "YouTubeショート動画の視聴時間を制限し、健全なブラウジング習慣をサポートします",
   "permissions": [
     "storage",
