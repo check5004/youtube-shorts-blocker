@@ -1,0 +1,105 @@
+name: Release Extension
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'manifest.json'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Read version from manifest
+      id: version
+      run: |
+        VERSION=$(grep '"version"' manifest.json | sed 's/.*"version": "\(.*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+        
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Tag v${{ steps.version.outputs.version }} already exists"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Tag v${{ steps.version.outputs.version }} does not exist"
+        fi
+        
+    - name: Create release ZIP
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        # Create temporary directory for extension files
+        mkdir extension-build
+        
+        # Copy extension files (exclude development files)
+        cp manifest.json extension-build/
+        cp background.js extension-build/
+        cp content.js extension-build/
+        cp lock_screen.js extension-build/
+        cp popup.html extension-build/
+        cp popup.css extension-build/
+        cp popup.js extension-build/
+        cp -r icons extension-build/
+        
+        # Create ZIP file
+        cd extension-build
+        zip -r "../youtube-shorts-blocker-v${{ steps.version.outputs.version }}.zip" .
+        cd ..
+        
+        # Verify ZIP contents
+        echo "ZIP contents:"
+        unzip -l "youtube-shorts-blocker-v${{ steps.version.outputs.version }}.zip"
+        
+    - name: Create Git tag
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
+        git push origin "v${{ steps.version.outputs.version }}"
+        
+    - name: Create GitHub Release
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: YouTube Shorts Blocker v${{ steps.version.outputs.version }}
+        body: |
+          ## YouTube Shorts Blocker v${{ steps.version.outputs.version }}
+          
+          ### インストール方法
+          1. `youtube-shorts-blocker-v${{ steps.version.outputs.version }}.zip` をダウンロード
+          2. ZIPファイルを解凍
+          3. Chrome拡張機能の管理画面で「デベロッパーモード」を有効化
+          4. 「パッケージ化されていない拡張機能を読み込む」で解凍したフォルダを選択
+          
+          ### 変更履歴
+          manifest.jsonのバージョンが更新されました。詳細な変更内容は最新のコミットをご確認ください。
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./youtube-shorts-blocker-v${{ steps.version.outputs.version }}.zip
+        asset_name: youtube-shorts-blocker-v${{ steps.version.outputs.version }}.zip
+        asset_content_type: application/zip
+        
+    - name: Skip release (tag exists)
+      if: steps.check_tag.outputs.exists == 'true'
+      run: |
+        echo "Release v${{ steps.version.outputs.version }} already exists. Skipping release creation."

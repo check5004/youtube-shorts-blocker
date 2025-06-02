@@ -1,0 +1,29 @@
+{
+  "name": "youtube-shorts-blocker",
+  "version": "1.0.2",
+  "description": "YouTubeショート動画の視聴時間を制限し、健全なブラウジング習慣をサポートします",
+  "scripts": {
+    "version:patch": "npm version patch --no-git-tag-version && node scripts/sync-version.js",
+    "version:minor": "npm version minor --no-git-tag-version && node scripts/sync-version.js",
+    "version:major": "npm version major --no-git-tag-version && node scripts/sync-version.js",
+    "build": "node scripts/build-extension.js",
+    "prepare-release": "npm run build && echo 'Ready for release. Push to main to trigger GitHub Action.'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/check5004/youtube-shorts-blocker.git"
+  },
+  "keywords": [
+    "youtube",
+    "shorts",
+    "blocker",
+    "chrome-extension",
+    "productivity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/check5004/youtube-shorts-blocker/issues"
+  },
+  "homepage": "https://github.com/check5004/youtube-shorts-blocker#readme"
+}

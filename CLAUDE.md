@@ -36,3 +36,47 @@ No build process required - modify JavaScript files directly and reload the exte
 - Aggregates viewing time across multiple YouTube tabs
 - Progressive messaging system (gentle → warning → strict) based on usage
 - Blocks all keyboard events except F5/F12/DevTools in lock screen mode
+
+## Release Management
+
+### Version Management
+
+This project uses semantic versioning (semver) with automated release creation via GitHub Actions.
+
+#### Version Bumping Commands
+
+```bash
+# Patch version (1.0.2 → 1.0.3) - for bug fixes
+npm run version:patch
+
+# Minor version (1.0.2 → 1.1.0) - for new features
+npm run version:minor
+
+# Major version (1.0.2 → 2.0.0) - for breaking changes
+npm run version:major
+```
+
+#### Release Process
+
+1. **Update version**: Use one of the version bump commands above
+2. **Commit changes**: `git add . && git commit -m "Release vX.X.X"`
+3. **Push to main**: `git push origin main`
+4. **Automatic release**: GitHub Action automatically creates release with ZIP file
+
+#### GitHub Action Workflow
+
+- **Trigger**: Push to main branch with changes to `manifest.json`
+- **Process**: 
+  - Extracts version from `manifest.json`
+  - Creates extension ZIP file with all necessary files
+  - Creates Git tag and GitHub release
+  - Uploads ZIP as release asset
+- **Files included in ZIP**: `manifest.json`, `background.js`, `content.js`, `lock_screen.js`, `popup.*`, `icons/`
+
+#### Version Synchronization
+
+The project maintains version consistency between:
+- `package.json` (npm version)
+- `manifest.json` (extension version)
+
+The `scripts/sync-version.js` script automatically synchronizes these when using npm version commands.
