@@ -276,6 +276,18 @@ section {
   border-color: #bd2130;
 }
 
+.debug-export-btn {
+  background: #6c757d;
+  color: white;
+  border-color: #6c757d;
+  margin-bottom: 0;
+}
+
+.debug-export-btn:hover {
+  background: #5a6268;
+  border-color: #545b62;
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 340px) {
   .container {
