@@ -10,10 +10,12 @@ body {
   line-height: 1.4;
   color: #333;
   background: #f8f9fa;
+  width: 460px;
+  margin: 0;
 }
 
 .container {
-  width: 360px;
+  width: 100%;
   padding: 16px;
 }
 
@@ -294,9 +296,12 @@ section {
 }
 
 /* レスポンシブ対応 */
-@media (max-width: 340px) {
+@media (max-width: 440px) {
+  body {
+    width: 380px;
+  }
+  
   .container {
-    width: 280px;
     padding: 12px;
   }
   
