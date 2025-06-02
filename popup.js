@@ -16,7 +16,8 @@ const elements = {
   alwaysOffToggle: document.getElementById('alwaysOffToggle'),
   debugModeToggle: document.getElementById('debugModeToggle'),
   debugControls: document.getElementById('debugControls'),
-  forceLockBtn: document.getElementById('forceLockBtn')
+  forceLockBtn: document.getElementById('forceLockBtn'),
+  exportDebugBtn: document.getElementById('exportDebugBtn')
 };
 
 async function initializePopup() {
@@ -49,6 +50,7 @@ function setupEventListeners() {
   elements.alwaysOffToggle.addEventListener('change', handleAlwaysOffToggle);
   elements.debugModeToggle.addEventListener('change', handleDebugModeToggle);
   elements.forceLockBtn.addEventListener('click', handleForceLock);
+  elements.exportDebugBtn.addEventListener('click', handleExportDebug);
 }
 
 function sendMessage(message) {
@@ -289,5 +291,47 @@ async function updateStatus() {
     updateUI(status);
   } catch (error) {
     console.error('Failed to update status:', error);
+  }
+}
+
+async function handleExportDebug() {
+  try {
+    // Get all storage data
+    const allData = await chrome.storage.local.get(null);
+    
+    // Create debug export object
+    const debugExport = {
+      exportTime: new Date().toISOString(),
+      extensionVersion: chrome.runtime.getManifest().version,
+      settings: allData,
+      debugEvents: allData.yt_shorts_blocker_debug_events || [],
+      browserInfo: navigator.userAgent
+    };
+    
+    // Convert to JSON and create download
+    const jsonData = JSON.stringify(debugExport, null, 2);
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create download link
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `yt-shorts-blocker-debug-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+    a.click();
+    
+    // Clean up
+    URL.revokeObjectURL(url);
+    
+    // Update button to show success
+    elements.exportDebugBtn.textContent = 'エクスポート完了！';
+    elements.exportDebugBtn.disabled = true;
+    
+    setTimeout(() => {
+      elements.exportDebugBtn.textContent = 'デバッグ情報をエクスポート';
+      elements.exportDebugBtn.disabled = false;
+    }, 2000);
+  } catch (error) {
+    console.error('Failed to export debug data:', error);
+    alert('デバッグ情報のエクスポートに失敗しました');
   }
 }
