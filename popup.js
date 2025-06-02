@@ -25,7 +25,7 @@ const elements = {
 async function initializePopup() {
   try {
     const status = await sendMessage({ type: 'getStatus' });
-    updateUI(status);
+    await updateUI(status);
   } catch (error) {
     console.error('Failed to initialize popup:', error);
   }
@@ -69,8 +69,30 @@ function sendMessage(message) {
   });
 }
 
-function updateUI(status) {
-  if (status.isRunning && status.remainingTime > 0) {
+async function isCurrentTabTempDisabled(status) {
+  try {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (activeTab && status.settings.tempDisableForTab) {
+      return status.settings.tempDisableForTab.includes(activeTab.id);
+    }
+  } catch (error) {
+    console.error('Failed to check current tab status:', error);
+  }
+  return false;
+}
+
+async function updateUI(status) {
+  // Check for timer disabled states
+  if (status.settings.isTimerAlwaysDisabled) {
+    elements.remainingTime.textContent = 'タイマー常時OFF';
+    elements.remainingTime.style.color = '#5f6368';
+  } else if (status.settings.todayOffUntil && new Date() < new Date(status.settings.todayOffUntil)) {
+    elements.remainingTime.textContent = '今日はタイマーOFF';
+    elements.remainingTime.style.color = '#5f6368';
+  } else if (await isCurrentTabTempDisabled(status)) {
+    elements.remainingTime.textContent = '今回のみタイマーOFF';
+    elements.remainingTime.style.color = '#5f6368';
+  } else if (status.isRunning && status.remainingTime > 0) {
     elements.remainingTime.textContent = `残り ${formatTime(status.remainingTime)}`;
     elements.remainingTime.style.color = '#1a73e8';
   } else if (status.remainingTime <= 0) {
@@ -292,7 +314,7 @@ function startStatusUpdates() {
 async function updateStatus() {
   try {
     const status = await sendMessage({ type: 'getStatus' });
-    updateUI(status);
+    await updateUI(status);
   } catch (error) {
     console.error('Failed to update status:', error);
   }
