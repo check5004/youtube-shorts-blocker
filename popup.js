@@ -14,7 +14,9 @@ const elements = {
   tempDisableBtn: document.getElementById('tempDisableBtn'),
   todayOffToggle: document.getElementById('todayOffToggle'),
   alwaysOffToggle: document.getElementById('alwaysOffToggle'),
-  debugModeToggle: document.getElementById('debugModeToggle')
+  debugModeToggle: document.getElementById('debugModeToggle'),
+  debugControls: document.getElementById('debugControls'),
+  forceLockBtn: document.getElementById('forceLockBtn')
 };
 
 async function initializePopup() {
@@ -46,6 +48,7 @@ function setupEventListeners() {
   elements.todayOffToggle.addEventListener('change', handleTodayOffToggle);
   elements.alwaysOffToggle.addEventListener('change', handleAlwaysOffToggle);
   elements.debugModeToggle.addEventListener('change', handleDebugModeToggle);
+  elements.forceLockBtn.addEventListener('click', handleForceLock);
 }
 
 function sendMessage(message) {
@@ -86,6 +89,18 @@ function updateUI(status) {
   elements.todayOffToggle.checked = status.settings.todayOffUntil && new Date() < new Date(status.settings.todayOffUntil);
   elements.alwaysOffToggle.checked = status.settings.isTimerAlwaysDisabled;
   elements.debugModeToggle.checked = status.settings.debugMode || false;
+  
+  // デバッグモードに応じてコントロールの表示/非表示を切り替え
+  elements.debugControls.style.display = status.settings.debugMode ? 'block' : 'none';
+  
+  // デバッグモードに応じてタイマー入力の設定を変更
+  if (status.settings.debugMode) {
+    elements.timerMinutes.min = '0.1';
+    elements.timerMinutes.step = '0.1';
+  } else {
+    elements.timerMinutes.min = '5';
+    elements.timerMinutes.step = '5';
+  }
 }
 
 function formatTime(seconds) {
@@ -110,25 +125,44 @@ function formatDuration(milliseconds) {
 }
 
 async function adjustTimer(delta) {
-  const currentValue = parseInt(elements.timerMinutes.value);
-  const newValue = Math.max(5, Math.min(720, currentValue + delta));
+  const status = await sendMessage({ type: 'getStatus' });
+  const isDebugMode = status.settings.debugMode || false;
   
-  elements.timerMinutes.value = newValue;
+  const currentValue = parseFloat(elements.timerMinutes.value);
+  const minValue = isDebugMode ? 0.1 : 5;
+  const step = isDebugMode ? delta * 0.1 : delta;
+  const newValue = Math.max(minValue, Math.min(720, currentValue + step));
+  
+  elements.timerMinutes.value = isDebugMode ? newValue.toFixed(1) : Math.round(newValue);
   await updateTimerSetting(newValue);
 }
 
 async function handleTimerInput(event) {
-  let value = parseInt(event.target.value);
+  const status = await sendMessage({ type: 'getStatus' });
+  const isDebugMode = status.settings.debugMode || false;
   
-  if (isNaN(value) || value < 5) {
-    value = 5;
-  } else if (value > 720) {
-    value = 720;
+  let value = parseFloat(event.target.value);
+  
+  if (isDebugMode) {
+    // デバッグモード: 0.1分単位で設定可能
+    if (isNaN(value) || value < 0.1) {
+      value = 0.1;
+    } else if (value > 720) {
+      value = 720;
+    }
+    event.target.value = value.toFixed(1);
   } else {
-    value = Math.ceil(value / 5) * 5;
+    // 通常モード: 5分単位
+    if (isNaN(value) || value < 5) {
+      value = 5;
+    } else if (value > 720) {
+      value = 720;
+    } else {
+      value = Math.ceil(value / 5) * 5;
+    }
+    event.target.value = value;
   }
   
-  event.target.value = value;
   await updateTimerSetting(value);
 }
 
@@ -198,8 +232,42 @@ async function handleDebugModeToggle(event) {
       type: 'updateSettings',
       settings: { debugMode: event.target.checked }
     });
+    
+    // デバッグコントロールの表示/非表示を切り替え
+    elements.debugControls.style.display = event.target.checked ? 'block' : 'none';
+    
+    // タイマー入力の設定を更新
+    if (event.target.checked) {
+      elements.timerMinutes.min = '0.1';
+      elements.timerMinutes.step = '0.1';
+    } else {
+      elements.timerMinutes.min = '5';
+      elements.timerMinutes.step = '5';
+      // 通常モードに戻す場合、値を5分単位に丸める
+      const currentValue = parseFloat(elements.timerMinutes.value);
+      const roundedValue = Math.ceil(currentValue / 5) * 5;
+      if (currentValue !== roundedValue) {
+        elements.timerMinutes.value = roundedValue;
+        await updateTimerSetting(roundedValue);
+      }
+    }
   } catch (error) {
     console.error('Failed to update debug mode setting:', error);
+  }
+}
+
+async function handleForceLock() {
+  try {
+    await sendMessage({ type: 'forceLockScreen' });
+    elements.forceLockBtn.textContent = 'ロック画面を起動しました';
+    elements.forceLockBtn.disabled = true;
+    
+    setTimeout(() => {
+      elements.forceLockBtn.textContent = 'ロック画面を強制起動';
+      elements.forceLockBtn.disabled = false;
+    }, 2000);
+  } catch (error) {
+    console.error('Failed to force lock screen:', error);
   }
 }
 

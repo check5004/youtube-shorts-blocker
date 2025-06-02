@@ -151,7 +151,15 @@ async function startTimer() {
   timerState.lastSaveTime = Date.now();
   
   const remainingTime = (currentSettings.timerMinutes * 60 * 1000) - timerState.elapsedTime;
-  await chrome.alarms.create('shortsTimer', { delayInMinutes: remainingTime / (60 * 1000) });
+  const delayInMinutes = remainingTime / (60 * 1000);
+  
+  // Chrome alarms have a minimum delay of 1 minute in production, but allow shorter delays in debug mode
+  if (currentSettings.debugMode && delayInMinutes < 1) {
+    // For debug mode with very short timers, use a shorter alarm
+    await chrome.alarms.create('shortsTimer', { delayInMinutes: Math.max(0.1, delayInMinutes) });
+  } else {
+    await chrome.alarms.create('shortsTimer', { delayInMinutes: Math.max(1, delayInMinutes) });
+  }
   
   debugLog('Timer started, remaining time:', remainingTime / 1000, 'seconds');
 }
@@ -208,6 +216,15 @@ async function handleTimerExpired() {
 
 async function showLockScreen() {
   const activeTabs = Array.from(timerState.activeShortsTabs);
+  
+  // If no active Shorts tabs (e.g., force lock), show on current active tab
+  if (activeTabs.length === 0) {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (activeTab) {
+      activeTabs.push(activeTab.id);
+    }
+  }
+  
   for (const tabId of activeTabs) {
     try {
       await chrome.scripting.executeScript({
@@ -346,6 +363,12 @@ async function handleMessage(message, sender, sendResponse) {
         sendResponse(lockData);
         break;
         
+      case 'forceLockScreen':
+        debugLog('Force lock screen requested');
+        await showLockScreen();
+        sendResponse({ success: true });
+        break;
+        
       default:
         sendResponse({ error: 'Unknown message type' });
     }
@@ -391,7 +414,13 @@ async function extendTimer() {
   if (timerState.isRunning) {
     await chrome.alarms.clear('shortsTimer');
     const remainingTime = (currentSettings.timerMinutes * 60 * 1000) - timerState.elapsedTime;
-    await chrome.alarms.create('shortsTimer', { delayInMinutes: remainingTime / (60 * 1000) });
+    const delayInMinutes = remainingTime / (60 * 1000);
+    
+    if (currentSettings.debugMode && delayInMinutes < 1) {
+      await chrome.alarms.create('shortsTimer', { delayInMinutes: Math.max(0.1, delayInMinutes) });
+    } else {
+      await chrome.alarms.create('shortsTimer', { delayInMinutes: Math.max(1, delayInMinutes) });
+    }
   }
   
   debugLog('Timer extended by', currentSettings.timerMinutes, 'minutes');

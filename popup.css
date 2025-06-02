@@ -242,6 +242,40 @@ section {
   transform: translateX(20px);
 }
 
+/* デバッグセクション */
+.debug-section {
+  background: #fff3cd;
+  border: 1px solid #ffeeba;
+}
+
+.debug-controls {
+  margin-top: 16px;
+}
+
+.debug-info {
+  background: #fefefe;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.debug-note {
+  font-size: 12px;
+  color: #856404;
+  margin: 0;
+}
+
+.force-lock-btn {
+  background: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.force-lock-btn:hover {
+  background: #c82333;
+  border-color: #bd2130;
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 340px) {
   .container {

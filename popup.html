@@ -78,14 +78,28 @@
         </label>
       </div>
       
+    </section>
+
+    <!-- デバッグモードセクション（画面最下部の別セクション） -->
+    <section class="debug-section" id="debugSection">
+      <label class="setting-label">デバッグモード</label>
       <div class="toggle-group">
         <label class="toggle-label">
-          <span>デバッグモード</span>
+          <span>デバッグモードを有効にする</span>
           <div class="toggle-switch">
             <input type="checkbox" id="debugModeToggle">
             <span class="slider"></span>
           </div>
         </label>
+      </div>
+      
+      <div id="debugControls" class="debug-controls" style="display: none;">
+        <div class="debug-info">
+          <p class="debug-note">※ デバッグモードでは0.1分単位で時間設定が可能です</p>
+        </div>
+        <button id="forceLockBtn" class="control-btn force-lock-btn">
+          ロック画面を強制起動
+        </button>
       </div>
     </section>
   </div>
