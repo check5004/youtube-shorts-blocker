@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Shorts Blocker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>YouTube Shorts Blocker</h1>
+    </header>
+
+    <!-- 情報表示セクション -->
+    <section class="info-section">
+      <div class="daily-stats">
+        <span class="label">本日の視聴:</span>
+        <span id="dailyViewTime" class="value">0時間0分</span>
+      </div>
+    </section>
+
+    <!-- タイマーセクション -->
+    <section class="timer-section">
+      <div class="timer-display">
+        <div id="remainingTime" class="remaining-time">停止中</div>
+      </div>
+      
+      <div class="timer-controls">
+        <label class="setting-label">設定時間:</label>
+        <div class="time-input-group">
+          <button id="decreaseTime" class="time-btn">-</button>
+          <input type="number" id="timerMinutes" class="time-input" min="5" max="720" step="5">
+          <span class="time-unit">分</span>
+          <button id="increaseTime" class="time-btn">+</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 時間切れ時のアクション設定 -->
+    <section class="action-section">
+      <label class="setting-label">時間切れ時のアクション:</label>
+      <div class="action-chips">
+        <label class="chip-option">
+          <input type="radio" name="action" value="lock" checked>
+          <span class="chip">画面をロック</span>
+        </label>
+        <label class="chip-option">
+          <input type="radio" name="action" value="redirect">
+          <span class="chip">YouTubeトップへ強制遷移</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- コントロールセクション -->
+    <section class="control-section">
+      <button id="tempDisableBtn" class="control-btn">
+        今回のみタイマーを起動しない
+      </button>
+      
+      <div class="toggle-group">
+        <label class="toggle-label">
+          <span>今日はタイマーをOFFにする</span>
+          <div class="toggle-switch">
+            <input type="checkbox" id="todayOffToggle">
+            <span class="slider"></span>
+          </div>
+        </label>
+      </div>
+      
+      <div class="toggle-group">
+        <label class="toggle-label">
+          <span>タイマー自動起動を常にOFFにする</span>
+          <div class="toggle-switch">
+            <input type="checkbox" id="alwaysOffToggle">
+            <span class="slider"></span>
+          </div>
+        </label>
+      </div>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
