@@ -642,6 +642,39 @@ async function handleMessage(message, sender, sendResponse) {
         sendResponse({ success: true });
         break;
         
+      case 'toggleTempDisableForTab':
+        // Get the current active tab
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const currentTab = tabs[0];
+        
+        if (currentTab && currentTab.id) {
+          const tabId = currentTab.id;
+          const isShorts = isYouTubeShorts(currentTab.url);
+          
+          if (currentSettings.tempDisableForTab.has(tabId)) {
+            // Re-enable timer for this tab
+            currentSettings.tempDisableForTab.delete(tabId);
+            await saveSettings();
+            // Start timer if needed and tab is Shorts
+            if (isShorts && timerState.activeShortsTabs.has(tabId)) {
+              await startTimerIfNeeded();
+            }
+            sendResponse({ success: true, isDisabled: false });
+          } else {
+            // Disable timer for this tab
+            currentSettings.tempDisableForTab.add(tabId);
+            await saveSettings();
+            // Pause timer if this tab is an active Shorts tab
+            if (isShorts && timerState.activeShortsTabs.has(tabId)) {
+              await pauseTimer();
+            }
+            sendResponse({ success: true, isDisabled: true });
+          }
+        } else {
+          sendResponse({ success: false, error: 'No active tab found' });
+        }
+        break;
+        
       case 'getLockScreenData':
         const lockData = await getLockScreenData();
         sendResponse(lockData);

@@ -90,13 +90,15 @@ async function isCurrentTabTempDisabled(status) {
 
 async function updateUI(status) {
   // Check for timer disabled states
+  const isTabDisabled = await isCurrentTabTempDisabled(status);
+  
   if (status.settings.isTimerAlwaysDisabled) {
     elements.remainingTime.textContent = 'タイマー常時OFF';
     elements.remainingTime.style.color = '#5f6368';
   } else if (status.settings.todayOffUntil && new Date() < new Date(status.settings.todayOffUntil)) {
     elements.remainingTime.textContent = '今日はタイマーOFF';
     elements.remainingTime.style.color = '#5f6368';
-  } else if (await isCurrentTabTempDisabled(status)) {
+  } else if (isTabDisabled) {
     elements.remainingTime.textContent = '今回のみタイマーOFF';
     elements.remainingTime.style.color = '#5f6368';
   } else if (status.isRunning && status.remainingTime > 0) {
@@ -108,6 +110,13 @@ async function updateUI(status) {
   } else {
     elements.remainingTime.textContent = '停止中';
     elements.remainingTime.style.color = '#5f6368';
+  }
+  
+  // Update temp disable button text based on current state
+  if (isTabDisabled) {
+    elements.tempDisableBtn.textContent = 'タイマーを再開する';
+  } else {
+    elements.tempDisableBtn.textContent = '今回のみタイマーを起動しない';
   }
   
   elements.timerMinutes.value = status.settings.timerMinutes;
@@ -275,16 +284,21 @@ async function handleActionButtonClick(event) {
 
 async function handleTempDisable() {
   try {
-    await sendMessage({ type: 'tempDisableForTab' });
+    const response = await sendMessage({ type: 'toggleTempDisableForTab' });
     elements.tempDisableBtn.textContent = '設定完了';
     elements.tempDisableBtn.disabled = true;
     
     setTimeout(() => {
-      elements.tempDisableBtn.textContent = '今回のみタイマーを起動しない';
+      // Update button text based on new state
+      if (response.isDisabled) {
+        elements.tempDisableBtn.textContent = 'タイマーを再開する';
+      } else {
+        elements.tempDisableBtn.textContent = '今回のみタイマーを起動しない';
+      }
       elements.tempDisableBtn.disabled = false;
     }, 2000);
   } catch (error) {
-    console.error('Failed to disable timer for tab:', error);
+    console.error('Failed to toggle timer for tab:', error);
   }
 }
 
