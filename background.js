@@ -10,7 +10,8 @@ const DEFAULT_SETTINGS = {
     consecutiveExtensionCount: 0,
     lastResetDate: null
   },
-  debugMode: false
+  debugMode: false,
+  sessionHistory: [] // Array of timer sessions
 };
 
 // Add timer state persistence
@@ -29,6 +30,18 @@ let timerState = {
   elapsedTime: 0,
   activeShortsTabs: new Set(),
   lastSaveTime: null
+};
+
+// Current session tracking
+let currentSession = {
+  startTime: null,
+  endTime: null,
+  videoCount: 0,
+  videosWatched: new Set(), // Track unique video IDs
+  totalDuration: 0,
+  wasCompleted: false, // Whether timer expired naturally
+  extensions: 0,
+  interruptions: [] // Track pause/resume events
 };
 
 // Debug logging function
@@ -177,6 +190,13 @@ function isYouTubeShorts(url) {
   return url && url.includes('youtube.com/shorts/');
 }
 
+function extractVideoId(url) {
+  // Extract video ID from YouTube Shorts URL
+  // Format: https://www.youtube.com/shorts/VIDEO_ID
+  const match = url.match(/youtube\.com\/shorts\/([^?&]+)/);
+  return match ? match[1] : null;
+}
+
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
     await handleTabUpdate(tabId, tab.url);
@@ -195,6 +215,15 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 async function handleTabUpdate(tabId, url) {
   if (isYouTubeShorts(url)) {
     debugLog('YouTube Shorts detected on tab', tabId, 'URL:', url);
+    
+    // Track video if it's a new one
+    const videoId = extractVideoId(url);
+    if (videoId && !currentSession.videosWatched.has(videoId)) {
+      currentSession.videosWatched.add(videoId);
+      currentSession.videoCount++;
+      debugLog('New video tracked:', videoId, 'Total videos:', currentSession.videoCount);
+    }
+    
     timerState.activeShortsTabs.add(tabId);
     await saveTimerState();
     await startTimerIfNeeded();
@@ -261,6 +290,27 @@ function shouldStartTimer() {
 async function startTimer() {
   if (timerState.isRunning) return;
   
+  // Initialize new session if needed
+  if (!currentSession.startTime) {
+    currentSession = {
+      startTime: Date.now(),
+      endTime: null,
+      videoCount: currentSession.videoCount || 0, // Preserve video count if already tracking
+      videosWatched: currentSession.videosWatched || new Set(),
+      totalDuration: 0,
+      wasCompleted: false,
+      extensions: 0,
+      interruptions: []
+    };
+    debugLog('New session started');
+  } else {
+    // Track interruption (resume after pause)
+    currentSession.interruptions.push({
+      type: 'resume',
+      timestamp: Date.now()
+    });
+  }
+  
   timerState.isRunning = true;
   timerState.startTime = Date.now();
   timerState.lastSaveTime = Date.now();
@@ -286,6 +336,14 @@ async function startTimer() {
 async function pauseTimer() {
   if (!timerState.isRunning) return;
   
+  // Track interruption
+  if (currentSession.startTime) {
+    currentSession.interruptions.push({
+      type: 'pause',
+      timestamp: Date.now()
+    });
+  }
+  
   timerState.isRunning = false;
   if (timerState.startTime) {
     const sessionTime = Date.now() - timerState.startTime;
@@ -300,7 +358,46 @@ async function pauseTimer() {
   debugLog('Timer paused, elapsed time:', timerState.elapsedTime / 1000, 'seconds');
 }
 
+async function saveSessionToHistory() {
+  if (!currentSession.startTime) return;
+  
+  currentSession.endTime = Date.now();
+  currentSession.totalDuration = currentSession.endTime - currentSession.startTime;
+  
+  // Convert Set to Array for storage
+  const sessionData = {
+    ...currentSession,
+    videosWatched: Array.from(currentSession.videosWatched)
+  };
+  
+  // Add to history (keep last 50 sessions)
+  currentSettings.sessionHistory.unshift(sessionData);
+  if (currentSettings.sessionHistory.length > 50) {
+    currentSettings.sessionHistory = currentSettings.sessionHistory.slice(0, 50);
+  }
+  
+  await saveSettings();
+  debugLog('Session saved to history:', sessionData);
+  
+  // Reset current session
+  currentSession = {
+    startTime: null,
+    endTime: null,
+    videoCount: 0,
+    videosWatched: new Set(),
+    totalDuration: 0,
+    wasCompleted: false,
+    extensions: 0,
+    interruptions: []
+  };
+}
+
 async function resetTimer() {
+  // Save current session if active
+  if (currentSession.startTime) {
+    await saveSessionToHistory();
+  }
+  
   timerState.isRunning = false;
   timerState.startTime = null;
   timerState.elapsedTime = 0;
@@ -322,6 +419,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 async function handleTimerExpired() {
   debugLog('Timer expired, executing action:', currentSettings.actionOnTimeout);
+  
+  // Mark session as completed
+  if (currentSession.startTime) {
+    currentSession.wasCompleted = true;
+  }
   
   const sessionTime = timerState.startTime ? Date.now() - timerState.startTime : 0;
   currentSettings.dailyStats.totalViewTime += sessionTime;
@@ -588,10 +690,14 @@ async function getTimerStatus() {
     remainingTime = currentSettings.timerMinutes * 60 * 1000;
   }
   
+  // Convert Set to Array for proper serialization
+  const settingsToSend = { ...currentSettings };
+  settingsToSend.tempDisableForTab = Array.from(currentSettings.tempDisableForTab);
+  
   return {
     isRunning: timerState.isRunning,
     remainingTime: Math.floor(remainingTime / 1000),
-    settings: currentSettings,
+    settings: settingsToSend,
     dailyViewTime: realTimeDailyViewTime
   };
 }
@@ -600,6 +706,11 @@ async function extendTimer() {
   currentSettings.dailyStats.extensionCount++;
   currentSettings.dailyStats.consecutiveExtensionCount++;
   await saveSettings();
+  
+  // Track extension in current session
+  if (currentSession.startTime) {
+    currentSession.extensions++;
+  }
   
   const extensionTime = currentSettings.timerMinutes * 60 * 1000;
   timerState.elapsedTime = Math.max(0, timerState.elapsedTime - extensionTime);

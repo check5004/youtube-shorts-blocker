@@ -19,7 +19,9 @@ const elements = {
   debugModeToggle: document.getElementById('debugModeToggle'),
   debugControls: document.getElementById('debugControls'),
   forceLockBtn: document.getElementById('forceLockBtn'),
-  exportDebugBtn: document.getElementById('exportDebugBtn')
+  exportDebugBtn: document.getElementById('exportDebugBtn'),
+  historyList: document.getElementById('historyList'),
+  clearHistoryBtn: document.getElementById('clearHistoryBtn')
 };
 
 async function initializePopup() {
@@ -53,6 +55,7 @@ function setupEventListeners() {
   elements.debugModeToggle.addEventListener('change', handleDebugModeToggle);
   elements.forceLockBtn.addEventListener('click', handleForceLock);
   elements.exportDebugBtn.addEventListener('click', handleExportDebug);
+  elements.clearHistoryBtn.addEventListener('click', handleClearHistory);
 }
 
 function sendMessage(message) {
@@ -73,7 +76,11 @@ async function isCurrentTabTempDisabled(status) {
   try {
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (activeTab && status.settings.tempDisableForTab) {
-      return status.settings.tempDisableForTab.includes(activeTab.id);
+      // Ensure tempDisableForTab is an array
+      const disabledTabs = Array.isArray(status.settings.tempDisableForTab) 
+        ? status.settings.tempDisableForTab 
+        : [];
+      return disabledTabs.includes(activeTab.id);
     }
   } catch (error) {
     console.error('Failed to check current tab status:', error);
@@ -133,6 +140,40 @@ async function updateUI(status) {
     elements.timerMinutes.min = '5';
     elements.timerMinutes.step = '5';
   }
+  
+  // 履歴を表示
+  displayHistory(status.settings.sessionHistory || []);
+}
+
+function displayHistory(sessions) {
+  if (!sessions || sessions.length === 0) {
+    elements.historyList.innerHTML = '<div class="history-empty">まだ視聴履歴がありません</div>';
+    return;
+  }
+  
+  elements.historyList.innerHTML = sessions.slice(0, 10).map(session => {
+    const startDate = new Date(session.startTime);
+    const duration = formatDuration(session.totalDuration);
+    const status = session.wasCompleted ? 'completed' : 'interrupted';
+    const statusText = session.wasCompleted ? '完了' : '中断';
+    
+    const dateStr = `${startDate.getMonth() + 1}/${startDate.getDate()} ${startDate.getHours()}:${startDate.getMinutes().toString().padStart(2, '0')}`;
+    
+    return `
+      <div class="history-item">
+        <div class="history-date">
+          <span>${dateStr}</span>
+          <span class="history-status ${status}">${statusText}</span>
+        </div>
+        <div class="history-details">
+          <span class="history-stat">⏱️ ${duration}</span>
+          <span class="history-stat">📹 ${session.videoCount}本</span>
+          ${session.extensions > 0 ? `<span class="history-stat">🔄 ${session.extensions}回延長</span>` : ''}
+          ${session.interruptions.length > 0 ? `<span class="history-stat">⏸️ ${Math.floor(session.interruptions.length / 2)}回中断</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function formatTime(seconds) {
@@ -333,6 +374,33 @@ async function updateStatus() {
     await updateUI(status);
   } catch (error) {
     console.error('Failed to update status:', error);
+  }
+}
+
+async function handleClearHistory() {
+  if (!confirm('視聴履歴をすべて削除しますか？')) {
+    return;
+  }
+  
+  try {
+    await sendMessage({
+      type: 'updateSettings',
+      settings: { sessionHistory: [] }
+    });
+    
+    // Update UI immediately
+    displayHistory([]);
+    
+    // Show success feedback
+    elements.clearHistoryBtn.textContent = '削除しました';
+    elements.clearHistoryBtn.disabled = true;
+    
+    setTimeout(() => {
+      elements.clearHistoryBtn.textContent = '履歴をクリア';
+      elements.clearHistoryBtn.disabled = false;
+    }, 2000);
+  } catch (error) {
+    console.error('Failed to clear history:', error);
   }
 }
 
