@@ -1,142 +1,94 @@
-# YouTube Shorts Blocker - Timer Debug Analysis
+# タイマーデバッグ分析
 
-## Timer Stop/Pause Conditions
+## タイマー停止条件一覧
 
-### 1. Explicit Timer Stop Conditions
+### 1. 明示的な停止条件
 
-1. **Timer Expiration** (`background.js:189-202`)
-   - When chrome alarm "timer-expired" fires
-   - Calls `stopTimer()` function
-   - Shows lock screen if enabled
+#### 1.1 タブ関連の停止
+- **全てのショートタブが閉じられた時** (`handleTabRemoved`, line 232)
+  - `timerState.activeShortsTabs.size === 0` の場合に `pauseTimer()` を呼び出す
+  - 連続延長カウントもリセットされる
 
-2. **Manual Stop** (`background.js:169-187`)
-   - `stopTimer()` function
-   - Clears elapsed time
-   - Removes active tabs
-   - Clears timer expiration alarm
+- **ショート以外のページに遷移した時** (`handleTabUpdate`, line 208)
+  - YouTube Shorts以外のURLに変更された場合
+  - アクティブなショートタブがゼロになると `pauseTimer()` を呼び出す
 
-3. **All Shorts Tabs Closed** (`background.js:275-283`)
-   - When last Shorts tab is removed from `activeShortsTabs`
-   - Calls `pauseTimer()`
-   - Saves elapsed time
+#### 1.2 設定による停止
+- **一時的にタブでタイマーを無効化** (`tempDisableForTab`, line 536)
+  - ユーザーが「このタブでタイマーを一時停止」を選択した場合
+  - `pauseTimer()` を呼び出してタイマーを停止
 
-4. **Navigation Away from Shorts** (`content.js:34-47`)
-   - When URL changes from Shorts to non-Shorts
-   - Sends "shorts-left" message
-   - Removes tab from active list
+#### 1.3 タイマー期限切れ
+- **タイマー満了時** (`handleTimerExpired`, line 342)
+  - `resetTimer()` を呼び出してタイマーを完全にリセット
+  - ロック画面表示またはリダイレクト後に実行
 
-5. **Tab Closed** (`background.js:301-312`)
-   - `chrome.tabs.onRemoved` listener
-   - Removes tab from `activeShortsTabs`
-   - Pauses timer if no more Shorts tabs
+#### 1.4 日次リセット
+- **午前4時の自動リセット** (`performDailyReset`, line 488)
+  - `resetTimer()` を呼び出してタイマーを完全にリセット
+  - 全ての統計情報もリセット
 
-6. **Temporary Disable** (`background.js:373-378`)
-   - When tab ID is in `tempDisableForTab` Set
-   - Prevents timer from starting/continuing
+### 2. 条件付き開始（停止状態を維持）
+- **タイマーが常に無効化されている場合** (`shouldStartTimer`, line 247)
+  - `isTimerAlwaysDisabled` が true の場合
+- **本日オフ期間中** (`shouldStartTimer`, line 249)
+  - `todayOffUntil` が設定されており、現在時刻がその時刻より前の場合
 
-### 2. Timer Pause Conditions
+## 潜在的なエラー条件
 
-1. **Page Hidden** (`content.js:61-67`)
-   - When `document.visibilityState` becomes "hidden"
-   - Sends "visibility-changed" message with `isVisible: false`
-   - Pauses timer counting
+### 1. Chrome Storage API エラー
+- **ストレージクォータ超過**
+  - `chrome.storage.local.set()` が失敗する可能性（lines 124, 139）
+  - エラー時の挙動：設定やタイマー状態が保存されない
+  - 影響：ブラウザ再起動時に状態がリセットされる
 
-2. **Tab Becomes Inactive** (`background.js:154-167`)
-   - `pauseTimer()` function
-   - Saves current elapsed time
-   - Stops real-time counting but maintains state
+### 2. Chrome Alarms API エラー
+- **アラーム作成失敗** (`startTimer`, line 273-281)
+  - `chrome.alarms.create()` が失敗する可能性
+  - 原因：システムリソース不足、拡張機能の権限問題
+  - 影響：タイマーが期限切れにならない
 
-3. **Browser/Extension Restart** (`background.js:23-57`)
-   - Timer state persists in Chrome storage
-   - Restores on startup but requires user action to resume
+### 3. メモリ関連のエラー
+- **Set/Array 変換エラー** (`tempDisableForTab.includes` エラー)
+  - **根本原因**: `tempDisableForTab` が Set として保存されているが、popup.js で Array メソッドを使用
+  - 発生箇所：
+    - background.js line 123: `toSave.tempDisableForTab = Array.from(currentSettings.tempDisableForTab)`
+    - popup.js で `status.settings.tempDisableForTab.includes()` を呼び出し時
+  - **これが設定リセットの主要因と考えられる**
 
-### 3. Potential Error/Crash Scenarios
+### 4. 拡張機能のライフサイクルイベント
+- **拡張機能の更新** (`chrome.runtime.onInstalled`, line 66)
+  - 新しいバージョンがインストールされた時
+  - 設定は保持されるが、メモリ上のタイマー状態は失われる
 
-1. **Storage Access Failures**
-   - `chrome.storage.local.get()` might fail
-   - No try-catch in some critical paths
-   - Could result in undefined timer state
+- **Service Worker の停止**
+  - Manifest V3では、Service Workerが非アクティブ時に停止される
+  - 再起動時に `restoreTimerState()` で復元を試みる（line 143）
 
-2. **Race Conditions**
-   - Multiple tabs updating timer simultaneously
-   - No locking mechanism for shared state
-   - Potential for lost updates
+### 5. タブ通信エラー
+- **コンテンツスクリプトへのメッセージ送信失敗** (line 362)
+  - `chrome.tabs.sendMessage()` が失敗する可能性
+  - 原因：タブがまだロード中、拡張機能が再読み込みされた
+  - 影響：動画が一時停止されない可能性
 
-3. **Type Conversion Issues**
-   - `tempDisableForTab`: Set → Array conversion
-   - Missing validation in popup.js
-   - Causes `.includes is not a function` error
+### 6. 非同期処理の競合状態
+- **複数のタブで同時に状態変更**
+  - 複数のショートタブが同時に開閉される場合
+  - 状態の不整合が発生する可能性
 
-4. **Alarm API Limitations**
-   - Minimum 1-minute granularity
-   - Silent failures if alarm creation fails
-   - No error handling for alarm operations
+## 推奨される修正
 
-5. **Message Passing Failures**
-   - No acknowledgment for critical messages
-   - Messages might be lost during high activity
-   - No retry mechanism
+### tempDisableForTab.includes エラーの修正
+1. background.js の `getTimerStatus` 関数で、Set を Array に変換してから送信
+2. popup.js で Array.isArray() チェックを追加
 
-6. **Memory/State Corruption**
-   - Settings object might be partially loaded
-   - Missing default values for some settings
-   - Unexpected null/undefined propagation
+### エラーハンドリングの追加
+1. すべての chrome API 呼び出しに try-catch を追加
+2. エラー発生時のフォールバック処理を実装
+3. デバッグログを拡充してエラー追跡を容易にする
 
-## Observed Reset Behavior Analysis
+### 状態の整合性チェック
+1. タイマー状態を定期的に検証
+2. 不整合が検出された場合は自動修復
+3. 重要なイベントをログに記録（既に実装済み：`logDebugEvent`）
 
-Based on the issue description, the likely scenario is:
-
-1. **During repeat playback**: Timer continues running
-2. **Something causes timer to pause** (visibility change, tab switch)
-3. **Page reload on video change** triggers state restoration
-4. **Corrupted/missing storage data** causes full reset
-
-The settings reset indicates a storage corruption or initialization failure rather than just a timer issue.
-
-## Additional Error Scenarios Found
-
-### 1. Storage Quota Exceeded
-- Chrome storage has limits (5MB for local storage)
-- No error handling for storage quota exceeded errors
-- Could cause silent failures in `saveSettings()` and `saveTimerState()`
-
-### 2. Extension Update/Reload
-- When extension updates, all runtime state is lost
-- Background script restarts, but tabs remain open
-- Content scripts become orphaned and can't communicate
-
-### 3. Chrome Profile Sync Conflicts
-- Multiple devices syncing can overwrite local storage
-- Race conditions between sync and local operations
-- No conflict resolution mechanism
-
-### 4. Memory Pressure Events
-- Chrome may suspend background scripts under memory pressure
-- Timer state might not persist properly before suspension
-- Alarms may not fire correctly after resumption
-
-### 5. Permission Changes
-- If user modifies extension permissions during runtime
-- Can cause API calls to fail silently
-- No permission checking before API usage
-
-## Root Cause Analysis
-
-The most likely cause of the timer reset issue is:
-
-1. **Primary Issue**: The `tempDisableForTab` type mismatch causes an unhandled error
-2. **Secondary Issue**: This error interrupts the normal save/restore flow
-3. **Result**: Settings fail to save properly, leading to reset on next load
-
-When combined with YouTube's aggressive page reloading during video transitions, this creates the perfect storm for data loss.
-
-## Recommendations
-
-1. Add comprehensive error handling around storage operations
-2. Implement storage data validation and recovery
-3. Add debug logging for timer state transitions
-4. Fix the `tempDisableForTab` type mismatch (DONE)
-5. Implement history tracking to diagnose issues
-6. Add storage quota monitoring
-7. Handle extension update scenarios gracefully
-8. Implement data versioning for migrations
